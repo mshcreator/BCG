@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة أغطية جدول الضرب التفاعلية</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts for Arabic Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Amiri:wght@700&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti for Celebration -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: linear-gradient(135deg, #a855f7 0%, #3b82f6 50%, #06b6d4 100%);
+            touch-action: manipulation;
+            user-select: none;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background bubbles */
+        .bg-bubbles {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .bubble {
+            position: absolute;
+            bottom: -100px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: rise 12s infinite linear;
+        }
+        @keyframes rise {
+            0% { transform: translateY(0) scale(0.8); opacity: 0; }
+            50% { opacity: 0.6; }
+            100% { transform: translateY(-120vh) scale(1.2); opacity: 0; }
+        }
+
+        /* Felt Board Texture with Cartoonish Border */
+        .felt-board {
+            background-color: #fffdf5;
+            background-image: radial-gradient(#e2e8f0 1.5px, transparent 1.5px);
+            background-size: 16px 16px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3), inset 0 0 15px rgba(251, 191, 36, 0.3);
+            border: 8px solid #fbbf24;
+            border-radius: 24px;
+            position: relative;
+        }
+
+        /* Paper Card Styling */
+        .math-card {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.05);
+            font-family: 'Amiri', serif;
+            border: 2px solid #e2e8f0;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        /* Bottle Cap Styling (3D Playful Plastic effect) */
+        .cap {
+            background: radial-gradient(circle at 30% 30%, #60a5fa, #1d4ed8);
+            box-shadow: 0 6px 0px #1e40af, 0 10px 15px rgba(0, 0, 0, 0.25);
+            border: 3px dashed #93c5fd;
+            color: white;
+            font-family: 'Amiri', serif;
+            font-weight: bold;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        .cap:active {
+            transform: translateY(3px) scale(0.98);
+            box-shadow: 0 3px 0px #1e40af, 0 5px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .cap.selected {
+            transform: scale(1.15);
+            border-color: #facc15;
+            box-shadow: 0 0 0 4px #facc15, 0 8px 15px rgba(0,0,0,0.3);
+            animation: pulse-border 1s infinite alternate;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 3px #facc15, 0 8px 15px rgba(0,0,0,0.3); }
+            100% { box-shadow: 0 0 0 7px #fde047, 0 10px 20px rgba(0,0,0,0.4); }
+        }
+
+        /* Cap socket ring on the board */
+        .cap-socket {
+            border: 3px dashed #cbd5e1;
+            background-color: #f1f5f9;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        /* Solved card animation style */
+        .math-card.solved-card {
+            border-color: #22c55e;
+            background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+            order: -1; /* Move solved card to top in flex/grid */
+            animation: moveUpHighlight 0.6s ease-out;
+        }
+
+        @keyframes moveUpHighlight {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.03); border-color: #16a34a; }
+            100% { transform: scale(1); }
+        }
+
+        .cap-socket.waiting {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            animation: bounce-socket 0.8s infinite alternate;
+        }
+
+        @keyframes bounce-socket {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.08); border-color: #2563eb; }
+        }
+
+        .cap-socket.correct {
+            border: 3px solid #22c55e;
+            background-color: #dcfce7;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #93c5fd;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4 text-slate-800 relative">
+
+    <!-- Background Animated Bubbles -->
+    <div class="bg-bubbles" id="bubbles-container"></div>
+
+    <!-- Header / Controls Bar -->
+    <header class="max-w-5xl mx-auto w-full bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-3 sm:p-4 mb-3 border-4 border-amber-300 z-10 relative">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-3">
+            
+            <!-- Title with Cartoon Mascot -->
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-2xl shadow-md transform -rotate-3 border-2 border-amber-500">
+                    🌟
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-2xl font-black text-slate-800 flex items-center gap-2">
+                        لعبة أغطية جدول الضرب
+                        <span class="text-xs bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded-full border border-purple-300">مجهزة للجوال 📱</span>
+                    </h1>
+                    <p class="text-xs sm:text-sm text-purple-800 font-black flex items-center gap-1">
+                        <span>👩‍🏫 إعداد المعلمة:</span>
+                        <span class="text-purple-900 underline decoration-amber-400 decoration-2">فاطمة شنيمر</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Game Control Settings -->
+            <div class="flex flex-wrap items-center justify-center gap-2 w-full md:w-auto">
+                
+                <!-- Table Selector -->
+                <div class="flex items-center gap-1.5 bg-purple-50 p-1.5 rounded-xl border-2 border-purple-200">
+                    <label for="table-select" class="text-xs sm:text-sm font-black text-purple-800 mr-1">الجدول:</label>
+                    <select id="table-select" class="bg-white border-2 border-purple-300 rounded-lg px-2.5 py-1 text-xs sm:text-sm font-black text-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        <option value="2">جدول (٢)</option>
+                        <option value="3">جدول (٣)</option>
+                        <option value="4">جدول (٤)</option>
+                        <option value="5">جدول (٥)</option>
+                        <option value="6">جدول (٦)</option>
+                        <option value="7">جدول (٧)</option>
+                        <option value="8">جدول (٨)</option>
+                        <option value="9">جدول (٩)</option>
+                        <option value="10">جدول (١٠)</option>
+                        <option value="11">جدول (١١)</option>
+                        <option value="12">جدول (١٢)</option>
+                        <option value="random">تحدي ممتع 🎲</option>
+                    </select>
+                </div>
+
+                <!-- Number System Switcher -->
+                <button id="num-toggle-btn" class="bg-blue-50 hover:bg-blue-100 text-blue-800 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black border-2 border-blue-200 flex items-center gap-1.5 transition active:scale-95">
+                    <i class="fa-solid fa-arrow-rotate-left text-blue-600"></i>
+                    <span>الأرقام: <strong id="num-type-label" class="text-blue-700">شرقية (١٢٣)</strong></span>
+                </button>
+
+                <!-- Student Name Button -->
+                <button id="student-name-btn" class="bg-purple-50 hover:bg-purple-100 text-purple-800 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black border-2 border-purple-200 flex items-center gap-1.5 transition active:scale-95">
+                    <i class="fa-solid fa-user-graduate text-purple-600"></i>
+                    <span id="student-name-display">اسم البطل: ✏️</span>
+                </button>
+
+                <!-- New Game Button -->
+                <button id="restart-btn" class="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-lg transition flex items-center gap-1.5 border-b-4 border-emerald-700">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>جولة جديدة</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Area (Side by Side / Compact Single View) -->
+    <!-- Main Game Area (Side by Side / Compact Single View) -->
+    <main class="max-w-5xl mx-auto w-full flex-1 flex flex-col gap-3 items-center justify-center z-10 relative">
+        
+        <div class="felt-board w-full p-2.5 sm:p-5 transition-all">
+            
+            <!-- Score & Progress Header -->
+            <div class="flex justify-between items-center mb-3 bg-amber-100/90 p-2 sm:p-3 px-3 sm:px-4 rounded-xl border-2 border-amber-300 shadow-sm">
+                <div class="text-amber-950 font-black text-xs sm:text-base flex items-center gap-1.5">
+                    <i class="fa-solid fa-trophy text-amber-500 text-lg"></i>
+                    <span>الإجابات الصحيحة: <span id="score-count" class="text-blue-600 font-black text-base sm:text-xl">٠</span> / <span id="total-count">١٠</span></span>
+                </div>
+                <div class="text-xs sm:text-sm font-black text-purple-900 bg-white/80 px-2.5 py-1 rounded-lg border border-amber-200" id="game-status-text">
+                    👇 اختر غطاءً من الأسفل ثم اضغط مكان الناتج الصحيح!
+                </div>
+            </div>
+
+            <!-- Main Layout: Grid of Problems + Caps Area together -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 items-start">
+                
+                <!-- Math Problems Grid (3 Columns on Large, 1-2 on Mobile) -->
+                <div id="cards-grid" class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <!-- Cards injected by JS -->
+                </div>
+
+                <!-- Caps Sidebar/Tray (Integrated right next to problems) -->
+                <div class="lg:col-span-1 bg-gradient-to-b from-blue-50 to-indigo-50 rounded-2xl p-3 border-2 border-blue-200 flex flex-col items-center w-full shadow-inner">
+                    <div class="flex items-center gap-1.5 text-xs sm:text-sm font-black text-blue-900 mb-2">
+                        <i class="fa-solid fa-capsules text-blue-600"></i>
+                        <span>أغطية النواتج (<span id="remaining-caps-count">10</span>)</span>
+                    </div>
+
+                    <!-- Caps Container -->
+                    <div id="caps-tray" class="flex flex-wrap lg:flex-col gap-2 sm:gap-2.5 justify-center items-center w-full min-h-[100px] p-2 bg-white/70 rounded-xl border-2 border-dashed border-blue-300">
+                        <!-- Caps injected dynamically -->
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Name Input Custom Modal -->
+    <div id="name-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-white rounded-3xl border-4 border-purple-400 p-6 max-w-md w-full text-center relative shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-3 border-2 border-purple-300">
+                ✏️
+            </div>
+            <h3 class="text-xl font-black text-slate-800 mb-2">أهلاً بك يا بطل! 👋</h3>
+            <p class="text-sm font-bold text-slate-600 mb-4">اكتب اسمك الجميل ليتم عرضه في شهادة التفوق:</p>
+            
+            <input type="text" id="name-input-field" placeholder="اكتب اسمك هنا..." class="w-full bg-slate-50 border-2 border-purple-300 focus:border-purple-500 rounded-xl p-3 text-center text-lg font-black text-purple-900 focus:outline-none mb-4 shadow-inner">
+            
+            <div class="flex gap-2 justify-center">
+                <button id="save-name-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-black px-6 py-2.5 rounded-xl text-sm shadow-md transition active:scale-95 flex-1">
+                    حفظ ومتابعة 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Certificate Modal -->
+    <div id="cert-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden transition-opacity duration-300 opacity-0">
+        <div class="bg-gradient-to-br from-amber-50 via-white to-amber-100 rounded-3xl border-8 border-amber-400 p-4 sm:p-8 max-w-xl w-full text-center relative shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300" id="cert-card-content">
+            
+            <!-- Certificate Decorative Corners -->
+            <div class="absolute top-2 right-2 text-2xl text-amber-500">🌟</div>
+            <div class="absolute top-2 left-2 text-2xl text-amber-500">🌟</div>
+            <div class="absolute bottom-2 right-2 text-2xl text-amber-500">🏆</div>
+            <div class="absolute bottom-2 left-2 text-2xl text-amber-500">🏆</div>
+
+            <!-- Header Badge -->
+            <div class="inline-block bg-amber-400 text-amber-950 font-black px-6 py-1.5 rounded-full text-sm sm:text-base mb-3 shadow-md border-2 border-amber-500">
+                🏅 شهادة تفوق وتقدير 🏅
+            </div>
+
+            <h2 class="text-2xl sm:text-4xl font-black text-amber-900 font-serif mb-1">وسام عبقري الرياضيات</h2>
+            <p class="text-xs sm:text-sm text-amber-700 font-bold mb-4">يشهد نادي الأبطال للتفوق بأن البطل / البطلة:</p>
+
+            <!-- Student Name Container -->
+            <div class="bg-white border-b-4 border-amber-400 py-2.5 px-4 rounded-2xl shadow-inner mb-4 max-w-md mx-auto">
+                <span id="cert-student-name" class="text-2xl sm:text-3xl font-black text-purple-700 font-serif tracking-wide block">البطل المبدع</span>
+            </div>
+
+            <p class="text-xs sm:text-base text-slate-700 font-bold mb-5 leading-relaxed">
+                قد أتم بنجاح وتفوق حل جميع مسائل <span id="cert-table-name" class="text-blue-700 font-black">جدول الضرب</span> في وقت قياسي وبإجابات كاملة الدقة! 👏🎉
+            </p>
+
+            <!-- Medal Graphic / Mascot -->
+            <div class="flex justify-center items-center gap-4 mb-6">
+                <div class="w-16 h-16 sm:w-20 sm:h-20 bg-amber-400 rounded-full flex items-center justify-center text-3xl sm:text-4xl shadow-lg border-4 border-white text-white transform -rotate-6">
+                    🎖️
+                </div>
+                <div class="w-16 h-16 sm:w-20 sm:h-20 bg-blue-500 rounded-full flex items-center justify-center text-3xl sm:text-4xl shadow-lg border-4 border-white text-white transform rotate-6">
+                    ⭐
+                </div>
+            </div>
+
+            <!-- Date and Signature -->
+            <div class="flex justify-between items-center text-xs sm:text-sm font-bold text-amber-900 border-t-2 border-dashed border-amber-300 pt-3 mb-6 px-4">
+                <div>التاريخ: <span id="cert-date">٢٠٢٦/١٠/٢٥</span></div>
+                <div>توقيع المعلمة: <span class="font-black text-purple-800">أ. فاطمة شنيمر ✍️</span></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap justify-center gap-2 print:hidden">
+                <button id="print-cert-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-black px-4 py-2 rounded-xl text-xs sm:text-sm shadow-md transition active:scale-95 flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i>
+                    <span>طباعة الشهادة 🖨️</span>
+                </button>
+                <button id="close-cert-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-4 py-2 rounded-xl text-xs sm:text-sm shadow-md transition active:scale-95 flex items-center gap-1.5">
+                    <i class="fa-solid fa-play"></i>
+                    <span>تحدي جديد 🎲</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="max-w-5xl mx-auto w-full text-center py-2 text-xs font-bold text-white/90 drop-shadow mt-2 z-10 relative">
+        🎯 وسيلة تعليمية تفاعلية ممتعة ومصممة للجوال والتابلت &copy; 2026
+    </footer>
+
+    <!-- Audio Effects (Synthesized Web Audio API) -->
+    <script>
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            initCtx() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playSelect() {
+                this.initCtx();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.08);
+
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+
+            playCorrect() {
+                this.initCtx();
+                const now = this.ctx.currentTime;
+                
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc1.type = 'sine';
+                osc2.type = 'triangle';
+
+                osc1.frequency.setValueAtTime(523.25, now); // C5
+                osc1.frequency.exponentialRampToValueAtTime(880, now + 0.15); // A5
+
+                osc2.frequency.setValueAtTime(329.63, now); // E4
+                osc2.frequency.exponentialRampToValueAtTime(659.25, now + 0.15); // E5
+
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.35);
+                osc2.stop(now + 0.35);
+            }
+
+            playWrong() {
+                this.initCtx();
+                const now = this.ctx.currentTime;
+                
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(120, now + 0.2);
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+
+            playWin() {
+                this.initCtx();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, index) => {
+                    setTimeout(() => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.value = freq;
+                        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start();
+                        osc.stop(this.ctx.currentTime + 0.4);
+                    }, index * 120);
+                });
+            }
+        }
+
+        const sfx = new SoundFX();
+    </script>
+
+    <!-- Main Logic -->
+    <script>
+        // State variables
+        let currentTable = "2";
+        let useEasternArabic = true; 
+        let studentName = "";
+        let problems = [];
+        let score = 0;
+        let selectedCapElem = null; // Currently selected cap element for click-to-place
+        const TOTAL_PROBLEMS = 10;
+
+        const easternDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+
+        function formatNumber(num) {
+            if (!useEasternArabic) return num.toString();
+            return num.toString().split('').map(d => easternDigits[parseInt(d)] || d).join('');
+        }
+
+        // Custom Modal for Student Name
+        function openNameModal(onSuccessCallback = null) {
+            const modal = document.getElementById('name-modal');
+            const card = modal.querySelector('div');
+            const input = document.getElementById('name-input-field');
+            
+            input.value = studentName;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+                input.focus();
+            }, 10);
+
+            const saveBtn = document.getElementById('save-name-btn');
+            const handleSave = () => {
+                const val = input.value.trim();
+                if (val) {
+                    studentName = val;
+                    document.getElementById('student-name-display').innerText = `البطل: ${studentName}`;
+                }
+                closeNameModal();
+                if (onSuccessCallback) onSuccessCallback();
+                saveBtn.removeEventListener('click', handleSave);
+            };
+
+            saveBtn.onclick = handleSave;
+        }
+
+        function closeNameModal() {
+            const modal = document.getElementById('name-modal');
+            const card = modal.querySelector('div');
+            modal.classList.add('opacity-0');
+            card.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Show certificate modal
+        function showCertificate() {
+            const certModal = document.getElementById('cert-modal');
+            const certCard = document.getElementById('cert-card-content');
+            
+            document.getElementById('cert-student-name').innerText = studentName || "البطل المبدع";
+            
+            const tableText = currentTable === "random" ? "تحدي الجداول المختلطة" : `جدول (${formatNumber(currentTable)})`;
+            document.getElementById('cert-table-name').innerText = tableText;
+
+            // Format currentDate
+            const now = new Date();
+            const year = formatNumber(now.getFullYear());
+            const month = formatNumber(now.getMonth() + 1);
+            const day = formatNumber(now.getDate());
+            document.getElementById('cert-date').innerText = `${year}/${month}/${day}`;
+
+            certModal.classList.remove('hidden');
+            setTimeout(() => {
+                certModal.classList.remove('opacity-0');
+                certCard.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function hideCertificate() {
+            const certModal = document.getElementById('cert-modal');
+            const certCard = document.getElementById('cert-card-content');
+            certModal.classList.add('opacity-0');
+            certCard.classList.add('scale-95');
+            setTimeout(() => {
+                certModal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Generate background floating bubbles
+        function createBubbles() {
+            const container = document.getElementById('bubbles-container');
+            container.innerHTML = '';
+            for (let i = 0; i < 12; i++) {
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble';
+                const size = Math.random() * 60 + 20;
+                bubble.style.width = `${size}px`;
+                bubble.style.height = `${size}px`;
+                bubble.style.left = `${Math.random() * 100}%`;
+                bubble.style.animationDelay = `${Math.random() * 8}s`;
+                bubble.style.animationDuration = `${Math.random() * 6 + 8}s`;
+                container.appendChild(bubble);
+            }
+        }
+
+        // Generate Math Questions
+        function generateProblems() {
+            problems = [];
+            const isRandom = currentTable === "random";
+            
+            let factors = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+            factors.sort(() => Math.random() - 0.5);
+
+            for (let i = 0; i < TOTAL_PROBLEMS; i++) {
+                let num1 = factors[i];
+                let num2 = isRandom ? Math.floor(Math.random() * 10) + 1 : parseInt(currentTable);
+                
+                problems.push({
+                    id: `p-${i}`,
+                    num1: num1,
+                    num2: num2,
+                    answer: num1 * num2,
+                    solved: false
+                });
+            }
+        }
+
+        // Render Game Board
+        function renderBoard() {
+            const grid = document.getElementById('cards-grid');
+            const tray = document.getElementById('caps-tray');
+            grid.innerHTML = '';
+            tray.innerHTML = '';
+            selectedCapElem = null;
+            
+            score = 0;
+            updateScoreUI();
+
+            // 1. Render Problem Cards
+            problems.forEach((prob) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = "flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-xl shadow-sm border-2 border-slate-200 math-card";
+                
+                const eqText = `${formatNumber(prob.num1)} × ${formatNumber(prob.num2)}`;
+
+                cardEl.innerHTML = `
+                    <!-- Cap socket container -->
+                    <div class="cap-socket w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center relative shrink-0 shadow-inner" 
+                         data-id="${prob.id}" 
+                         data-answer="${prob.answer}">
+                        <span class="text-slate-400 text-[10px] sm:text-xs text-center font-bold select-none placeholder-text">؟</span>
+                    </div>
+
+                    <!-- Multiplication Formula Card -->
+                    <div class="flex-1 text-center font-black text-2xl sm:text-3xl text-slate-800 tracking-wider">
+                        ${eqText}
+                    </div>
+                `;
+
+                // Socket click event for placing cap easily on mobile
+                const socket = cardEl.querySelector('.cap-socket');
+                socket.addEventListener('click', () => handleSocketClick(socket));
+
+                grid.appendChild(cardEl);
+            });
+
+            // 2. Render Caps in Tray
+            const answers = problems.map(p => ({ id: p.id, answer: p.answer }));
+            answers.sort(() => Math.random() - 0.5);
+
+            answers.forEach((item) => {
+                const cap = createCapElement(item.answer, item.id);
+                tray.appendChild(cap);
+            });
+
+            setupDragAndDrop();
+        }
+
+        // Create cap element
+        function createCapElement(val, problemId) {
+            const cap = document.createElement('div');
+            cap.className = "cap w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-base sm:text-xl font-black select-none shrink-0";
+            cap.setAttribute('draggable', 'true');
+            cap.setAttribute('data-val', val);
+            cap.setAttribute('data-prob-id', problemId);
+            cap.innerText = formatNumber(val);
+
+            // Click to Select for Mobile
+            cap.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (cap.parentElement.classList.contains('cap-socket')) return; // Already placed
+
+                sfx.playSelect();
+
+                // Toggle Selection
+                if (selectedCapElem === cap) {
+                    clearSelection();
+                } else {
+                    clearSelection();
+                    selectedCapElem = cap;
+                    cap.classList.add('selected');
+                    highlightSockets(true);
+                    document.getElementById('game-status-text').innerHTML = `
+                        <span class="text-blue-700 font-black">الآن اضغط على الدائرة بجانب المسألة المناسبة! 🎯</span>
+                    `;
+                }
+            });
+
+            return cap;
+        }
+
+        function clearSelection() {
+            if (selectedCapElem) {
+                selectedCapElem.classList.remove('selected');
+                selectedCapElem = null;
+            }
+            highlightSockets(false);
+            document.getElementById('game-status-text').innerText = "👇 اختر غطاءً من الأسفل ثم اضغط مكان الناتج الصحيح!";
+        }
+
+        function highlightSockets(enable) {
+            const sockets = document.querySelectorAll('.cap-socket');
+            sockets.forEach(s => {
+                if (!s.classList.contains('correct')) {
+                    if (enable) s.classList.add('waiting');
+                    else s.classList.remove('waiting');
+                }
+            });
+        }
+
+        function handleSocketClick(socket) {
+            if (socket.classList.contains('correct')) return;
+
+            if (selectedCapElem) {
+                checkAnswer(selectedCapElem, socket);
+                clearSelection();
+            } else {
+                // If clicked socket without selecting cap first
+                document.getElementById('game-status-text').innerHTML = `
+                    <span class="text-amber-800 font-black">⚠️ الرجاء اختيار غطاء أولاً من القائمة!</span>
+                `;
+            }
+        }
+
+        function updateScoreUI() {
+            document.getElementById('score-count').innerText = formatNumber(score);
+            document.getElementById('total-count').innerText = formatNumber(TOTAL_PROBLEMS);
+            document.getElementById('remaining-caps-count').innerText = formatNumber(TOTAL_PROBLEMS - score);
+        }
+
+        // Drag and Drop support
+        function setupDragAndDrop() {
+            const caps = document.querySelectorAll('.cap');
+            const sockets = document.querySelectorAll('.cap-socket');
+
+            let draggedCap = null;
+
+            caps.forEach(cap => {
+                cap.addEventListener('dragstart', (e) => {
+                    draggedCap = cap;
+                    cap.classList.add('opacity-50');
+                    e.dataTransfer.setData('text/plain', cap.dataset.val);
+                });
+
+                cap.addEventListener('dragend', () => {
+                    cap.classList.remove('opacity-50');
+                    draggedCap = null;
+                });
+            });
+
+            sockets.forEach(socket => {
+                socket.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+
+                socket.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (socket.classList.contains('correct')) return;
+
+                    if (draggedCap) {
+                        checkAnswer(draggedCap, socket);
+                        clearSelection();
+                    }
+                });
+            });
+        }
+
+        // Verify Answer Placement
+        function checkAnswer(capElem, socketElem) {
+            const capVal = parseInt(capElem.dataset.val);
+            const expectedAns = parseInt(socketElem.dataset.answer);
+
+            if (capVal === expectedAns) {
+                // Correct match!
+                sfx.playCorrect();
+
+                // Move Cap into Socket
+                socketElem.innerHTML = '';
+                socketElem.appendChild(capElem);
+                socketElem.classList.remove('waiting');
+                socketElem.classList.add('correct');
+
+                // Cap styling inside socket
+                capElem.classList.remove('selected', 'cap');
+                capElem.className = "w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-base sm:text-xl font-black text-white bg-gradient-to-r from-emerald-500 to-green-600 shadow-md border-2 border-emerald-300";
+
+                // Move solved card to top automatically
+                const parentCard = socketElem.closest('.math-card');
+                if (parentCard) {
+                    parentCard.classList.add('solved-card');
+                    const cardsGrid = document.getElementById('cards-grid');
+                    // Prepend card so solved ones float to top automatically
+                    cardsGrid.prepend(parentCard);
+                }
+
+                score++;
+                updateScoreUI();
+
+                // Check Win Condition
+            if (score === TOTAL_PROBLEMS) {
+                setTimeout(() => {
+                    sfx.playWin();
+                    confetti({
+                        particleCount: 150,
+                        spread: 90,
+                        origin: { y: 0.6 }
+                    });
+                    document.getElementById('game-status-text').innerHTML = `
+                        <span class="text-emerald-700 font-black">🎉 ممتاز جِداً! أحسنتَ حل كافة أغطية الجدول بنجاح!</span>
+                    `;
+                    
+                    // Show certificate after checking name
+                    setTimeout(() => {
+                        if (!studentName) {
+                            openNameModal(() => {
+                                showCertificate();
+                            });
+                        } else {
+                            showCertificate();
+                        }
+                    }, 800);
+
+                }, 250);
+            }
+        } else {
+            // Incorrect match
+            sfx.playWrong();
+            
+            // Shake Animation Effect on Socket
+            socketElem.classList.add('animate-bounce');
+            setTimeout(() => {
+                socketElem.classList.remove('animate-bounce');
+            }, 500);
+
+            document.getElementById('game-status-text').innerHTML = `
+                <span class="text-rose-600 font-black">❌ حاول مرة أخرى! هذا ليس الناتج الصحيح.</span>
+            `;
+        }
+    }
+
+    // Initialize Game Events
+    document.addEventListener('DOMContentLoaded', () => {
+        createBubbles();
+
+        const tableSelect = document.getElementById('table-select');
+        const restartBtn = document.getElementById('restart-btn');
+        const numToggleBtn = document.getElementById('num-toggle-btn');
+        const numTypeLabel = document.getElementById('num-type-label');
+        const studentNameBtn = document.getElementById('student-name-btn');
+        const printCertBtn = document.getElementById('print-cert-btn');
+        const closeCertBtn = document.getElementById('close-cert-btn');
+
+        tableSelect.addEventListener('change', (e) => {
+            currentTable = e.target.value;
+            startNewGame();
+        });
+
+        restartBtn.addEventListener('click', () => {
+            startNewGame();
+        });
+
+        studentNameBtn.addEventListener('click', () => {
+            openNameModal();
+        });
+
+        numToggleBtn.addEventListener('click', () => {
+            useEasternArabic = !useEasternArabic;
+            numTypeLabel.innerText = useEasternArabic ? "شرقية (١٢٣)" : "إنجليزية (123)";
+            startNewGame();
+        });
+
+        printCertBtn.addEventListener('click', () => {
+            window.print();
+        });
+
+        closeCertBtn.addEventListener('click', () => {
+            hideCertificate();
+            startNewGame();
+        });
+
+        function startNewGame() {
+            generateProblems();
+            renderBoard();
+        }
+
+        startNewGame();
+    });
+</script>
+</body>
+</html>
